@@ -19,7 +19,6 @@ environ.Env.read_env(
 SECRET_KEY = env('SECRET_KEY')
 DEBUG = env('DEBUG')
 
-# 추가
 ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 
 
@@ -33,7 +32,11 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework', # DRF 라이브러리
+    'drf_spectacular', # Swagger 문서 생성 라이브러리
     'post.apps.PostConfig', # post/apps.py내에 정의된 PostConfig 클래스를 지칭
+    'account.apps.AccountConfig', # account/apps.py내에 정의된 AccountConfig 클래스를 지칭
+    # 추가
+    'tag.apps.TagConfig', # tag/apps.py내에 정의된 TagConfig 클래스를 지칭
 ]
 
 MIDDLEWARE = [
@@ -110,10 +113,20 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 
-# 추가
 # AllowAny 뒤에 컴마 주의!
 REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES' : (
         'rest_framework.permissions.AllowAny',
-    )
+    ),
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Likelion_API',
+    'DESCRIPTION': 'DRF 세미나 API 명세서입니다.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    # OTHER SETTINGS
+}
+
+AUTH_USER_MODEL = 'account.User'
