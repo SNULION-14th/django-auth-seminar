@@ -112,6 +112,8 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+import os
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 # AllowAny 뒤에 컴마 주의!
 REST_FRAMEWORK = {
