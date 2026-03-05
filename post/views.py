@@ -213,8 +213,6 @@ class LikeView(APIView):
         responses={200: PostSerializer, 404: "Not Found", 400: "Bad Request"},
     )
     def post(self, request, post_id):
-
-        ### 1 ###
         try:
             post = Post.objects.get(id=post_id)
         except:
@@ -233,7 +231,7 @@ class LikeView(APIView):
                 {"detail": "[username, password] fields missing."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        ### 2 ###
+        
         try:
             author = User.objects.get(username=username)
             if not author.check_password(password):
@@ -246,10 +244,8 @@ class LikeView(APIView):
                 {"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND
             )
 
-        ### 3 ###
         is_liked = post.like_set.filter(user=author).count() > 0
 
-        ### 4 ###
         if is_liked == True:
             post.like_set.get(user=author).delete()
             print("좋아요 취소")
