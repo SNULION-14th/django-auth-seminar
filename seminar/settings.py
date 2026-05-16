@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework_simplejwt',
     'rest_framework', # DRF 라이브러리
     'drf_spectacular', # Swagger 문서 생성 라이브러리
     'post.apps.PostConfig', # post/apps.py내에 정의된 PostConfig 클래스를 지칭
@@ -128,7 +129,43 @@ SPECTACULAR_SETTINGS = {
     'DESCRIPTION': 'DRF 세미나 API 명세서입니다.',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
+    'SECURITY': [{'jwtAuth': []}],
+    'APPEND_COMPONENTS': {
+        'securitySchemes': {
+            'jwtAuth': { 
+                'type': 'http',
+                'scheme': 'bearer',
+                'bearerFormat': 'JWT',
+            }
+        }
+    },
     # OTHER SETTINGS
 }
 
 AUTH_USER_MODEL = 'account.User'
+
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES' : (
+        'rest_framework.permissions.AllowAny',  # 🔹 기본적으로 모든 요청을 허용
+    ),
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',  # 🔹 JWT를 인증 방식으로 사용
+    )
+}
+
+from datetime import timedelta
+
+REST_USE_JWT = True  # 🔹 Django에서 JWT 사용을 활성화
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),  # 🔹 Access Token의 유효 기간: 30분
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),  # 🔹 Refresh Token의 유효 기간: 1일
+    'ROTATE_REFRESH_TOKENS': True,  # 🔹 Refresh Token을 사용할 때마다 새 토큰 발급
+    'BLACKLIST_AFTER_ROTATION': True,  # 🔹 이전 Refresh Token을 블랙리스트에 추가하여 재사용 방지
+    'AUTH_HEADER_TYPES': ('Bearer',),  # 🔹 인증 헤더 타입을 "Bearer"로 설정
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),  # 🔹 Access Token 클래스를 지정
+    'ACCESS_TOKEN': 'access_token',  # 🔹 Access Token의 이름 지정
+    'REFRESH_TOKEN': 'refresh_token',  # 🔹 Refresh Token의 이름 지정
+}
+
