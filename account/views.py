@@ -8,15 +8,26 @@ from drf_spectacular.utils import extend_schema
 
 from account.request_serializers import SignInRequestSerializer, SignUpRequestSerializer
 from .serializers import UserSerializer
+from rest_framework_simplejwt.tokens import RefreshToken
+
+from account.request_serializers import SignInRequestSerializer, SignUpRequestSerializer, TokenRefreshRequestSerializer
 
 User = get_user_model()
+
+def set_token_on_response_cookie(user, status_code):
+    token = RefreshToken.for_user(user)
+    serialized_data = UserSerializer(user).data
+    res = Response(serialized_data, status=status_code)
+    res.set_cookie("refresh_token", value=str(token), httponly=True)
+    res.set_cookie("access_token", value=str(token.access_token), httponly=True)
+    return res
 
 class SignUpView(APIView):
     @extend_schema(
         summary="회원가입",
         description="회원가입을 진행합니다.",
         request=SignUpRequestSerializer,
-        responses={201: UserSerializer, 400: "Bad Request"},
+        responses={201: UserSerializer, 400: "Bad Request"}, # 수정
     )
     def post(self, request):
         user_serializer = UserSerializer(data=request.data)
@@ -25,7 +36,10 @@ class SignUpView(APIView):
             user.set_password(request.data.get("password"))
             user.save()
 
-            return Response(user_serializer.data, status=status.HTTP_201_CREATED)
+            ### 수정
+            return set_token_on_response_cookie(user, status_code=status.HTTP_201_CREATED)
+            ###
+
         return Response(user_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class SignInView(APIView):
@@ -50,11 +64,43 @@ class SignInView(APIView):
                     {"message": "Password is incorrect"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            user_serializer = UserSerializer(user)
-            return Response(user_serializer.data, status=status.HTTP_200_OK)
+            
+            ## 수정
+            return set_token_on_response_cookie(user, status_code=status.HTTP_200_OK)
+            ##
 
         except User.DoesNotExist:
             return Response(
                 {"message": "User does not exist"}, status=status.HTTP_404_NOT_FOUND
             )
 
+
+class TokenRefreshView(APIView):
+    @extend_schema(
+        summary="토큰 재발급",
+        description="access 토큰을 재발급 받습니다.",
+        request=TokenRefreshRequestSerializer,
+        responses={200: UserSerializer},
+    )
+    def post(self, request):
+        refresh_token = request.data.get("refresh")
+        
+        #### 1
+        if not refresh_token:
+            return Response(
+                {"detail": "no refresh token"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+        #### 2
+            RefreshToken(refresh_token).verify()
+        except:
+            return Response(
+                {"detail": "please signin again."}, status=status.HTTP_401_UNAUTHORIZED
+            )
+            
+        #### 3
+        new_access_token = str(RefreshToken(refresh_token).access_token)
+        response = Response({"detail": "token refreshed"}, status=status.HTTP_200_OK)
+        response.set_cookie("access_token", value=str(new_access_token), httponly=True)
+        return response
