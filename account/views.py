@@ -9,7 +9,8 @@ from drf_spectacular.utils import extend_schema
 from account.request_serializers import SignInRequestSerializer, SignUpRequestSerializer, TokenRefreshRequestSerializer
 from .serializers import UserSerializer
 
-from rest_framework_simplejwt.tokens import RefreshToken #추가
+from rest_framework_simplejwt.tokens import RefreshToken
+from .request_serializers import LogoutRequestSerializer
 
 
 User = get_user_model()
@@ -109,3 +110,32 @@ class TokenRefreshView(APIView):
         response = Response({"detail": "token refreshed"}, status=status.HTTP_200_OK)
         response.set_cookie("access_token", value=str(new_access_token), httponly=True)
         return response
+
+class LogoutView(APIView):
+    @extend_schema(
+        summary="로그아웃",
+        description="Refresh 토큰을 블랙리스트에 등록하고 쿠키를 삭제하여 로그아웃합니다.",
+        request=LogoutRequestSerializer,
+        responses={205: "Reset Content (로그아웃 성공)", 400: "Bad Request"}
+    )
+    def post(self, request):
+        try:
+            # 1. Request Body에서 refresh 토큰 추출
+            refresh_token = request.data.get("refresh")
+            if not refresh_token:
+                return Response({"detail": "Refresh token이 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # 2. RefreshToken 객체 생성 후 블랙리스트에 등록
+            token = RefreshToken(refresh_token)
+            token.blacklist()  # 🔹 토큰을 휴지통(Blacklist)으로 보냄
+            
+            # 3. 로그아웃 성공 응답 생성 및 쿠키 삭제
+            response = Response({"detail": "Successfully logged out."}, status=status.HTTP_205_RESET_CONTENT)
+            response.delete_cookie("access_token")
+            response.delete_cookie("refresh_token")
+            
+            return response
+
+        except Exception as e:
+            # 유효하지 않은 토큰이거나 이미 만료된 토큰일 경우 에러 처리
+            return Response({"detail": "유효하지 않거나 이미 만료된 토큰입니다."}, status=status.HTTP_400_BAD_REQUEST)
