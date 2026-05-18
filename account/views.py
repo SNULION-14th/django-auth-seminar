@@ -76,6 +76,33 @@ class SignInView(APIView):
             )
 
 
+class SignOutView(APIView):
+    @extend_schema(
+        summary="로그아웃",
+        description="로그아웃을 진행합니다.",
+        request=TokenRefreshRequestSerializer,
+        responses={204: None, 404: "Not Found", 400: "Bad Request"},
+    )
+    def post(self, request):
+        refresh_token = request.data.get("refresh")
+        if not refresh_token:
+            return Response(
+                {"detail": "no refresh token"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            token = RefreshToken(refresh_token)
+            token.verify()
+        except:
+            return Response(
+                {"detail": "please signin"}, status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        token.blacklist()
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    
+
 class TokenRefreshView(APIView):
     @extend_schema(
         summary="토큰 재발급",
