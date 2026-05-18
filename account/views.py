@@ -12,6 +12,7 @@ from account.request_serializers import (
     SignInRequestSerializer,
     SignUpRequestSerializer,
     TokenRefreshRequestSerializer,
+    SignOutRequestSerializer,
 )
 from .serializers import UserSerializer
 
@@ -90,6 +91,34 @@ class SignInView(APIView):
             return Response(
                 {"message": "User does not exist"}, status=status.HTTP_404_NOT_FOUND
             )
+
+
+class SignOutView(APIView):
+    @extend_schema(
+        summary="로그아웃",
+        description="로그아웃을 진행합니다.",
+        request=SignOutRequestSerializer,
+        responses={204: "No Content", 401: "Unauthorized", 400: "Bad Request"},
+    )
+    def post(self, request):
+        if not request.user.is_authenticated:
+            return Response(
+                {"detail": "please signin"}, status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        refresh_token = request.data.get("refresh")
+        if not refresh_token:
+            return Response(
+                {"detail": "no refresh token"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        token = RefreshToken(refresh_token)
+        token.blacklist()
+
+        res = Response(status=status.HTTP_204_NO_CONTENT)
+        res.delete_cookie("access_token")
+        res.delete_cookie("refresh_token")
+        return res
 
 
 class TokenRefreshView(APIView):
