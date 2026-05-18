@@ -2,6 +2,7 @@
 
 from rest_framework.serializers import ModelSerializer
 from django.contrib.auth import get_user_model
+from rest_framework import serializers
 
 User = get_user_model()
 
@@ -14,3 +15,6 @@ class UserSerializer(ModelSerializer):
     class Meta:
         model = User
         fields = ["id", "username", "password", "email", "college", "major"]
+
+class LogOutSerializer(serializers.Serializer):
+    refresh = serializers.CharField()
