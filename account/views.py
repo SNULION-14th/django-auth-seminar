@@ -6,10 +6,30 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema
 
-from account.request_serializers import SignInRequestSerializer, SignUpRequestSerializer
-from .serializers import UserSerializer
+from account.request_serializers import SignInRequestSerializer, SignUpRequestSerializer, TokenRefreshRequestSerializer
+from .serializers import UserSerializer, LogOutSerializer
+from rest_framework_simplejwt.tokens import RefreshToken #추가
+
 
 User = get_user_model()
+
+def set_token_on_response_cookie(user, status_code):
+    token = RefreshToken.for_user(user)
+    serialized_data = UserSerializer(user).data
+    res = Response(serialized_data, status=status_code)
+    res.set_cookie("refresh_token", value=str(token), httponly=True)
+    res.set_cookie("access_token", value=str(token.access_token), httponly=True)
+    return res
+
+
+def generate_token_in_serialized_data(user):
+    token = RefreshToken.for_user(user)
+    refresh_token, access_token = str(token), str(token.access_token)
+    serialized_data = UserSerializer(user).data
+    serialized_data["token"] = {"access": access_token, "refresh": refresh_token}
+    return serialized_data
+
+
 
 class SignUpView(APIView):
     @extend_schema(
@@ -25,7 +45,7 @@ class SignUpView(APIView):
             user.set_password(request.data.get("password"))
             user.save()
 
-            return Response(user_serializer.data, status=status.HTTP_201_CREATED)
+            return set_token_on_response_cookie(user, status_code=status.HTTP_201_CREATED)
         return Response(user_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class SignInView(APIView):
@@ -50,11 +70,62 @@ class SignInView(APIView):
                     {"message": "Password is incorrect"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            user_serializer = UserSerializer(user)
-            return Response(user_serializer.data, status=status.HTTP_200_OK)
-
+            return set_token_on_response_cookie(user, status_code=status.HTTP_200_OK)
         except User.DoesNotExist:
             return Response(
                 {"message": "User does not exist"}, status=status.HTTP_404_NOT_FOUND
             )
 
+class TokenRefreshView(APIView):
+    @extend_schema(
+        summary="토큰 재발급",
+        description="access 토큰을 재발급 받습니다.",
+        request=TokenRefreshRequestSerializer,
+        responses={200: UserSerializer},
+    )
+    def post(self, request):
+        refresh_token = request.data.get("refresh")
+        
+        #### 1
+        if not refresh_token:
+            return Response(
+                {"detail": "no refresh token"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+        #### 2
+            RefreshToken(refresh_token).verify()
+        except:
+            return Response(
+                {"detail": "please signin again."}, status=status.HTTP_401_UNAUTHORIZED
+            )
+            
+        #### 3
+        new_access_token = str(RefreshToken(refresh_token).access_token)
+        response = Response({"detail": "token refreshed"}, status=status.HTTP_200_OK)
+        response.set_cookie("access_token", value=str(new_access_token), httponly=True)
+        return response
+
+class LogOutView(APIView):
+    @extend_schema(
+    summary="로그아웃",
+    description="로그아웃합니다.",
+    request=LogOutSerializer,
+    responses={204: "No Content", 401: "Unauthorized", 400: "Bad Request"},
+
+)
+    def post(self, request):
+        if not request.user.is_authenticated:
+            return Response({"detail": "please signin"}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        refresh_token = request.data.get("refresh")
+        if not refresh_token:
+            return Response({"detail": "no refresh token"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        token = RefreshToken(refresh_token)
+        token.blacklist()
+        
+        res = Response(status=status.HTTP_204_NO_CONTENT)
+        res.delete_cookie("access_token")
+        res.delete_cookie("refresh_token")
+        return res
