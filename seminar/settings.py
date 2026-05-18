@@ -33,6 +33,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework', # DRF 라이브러리
     'drf_spectacular', # Swagger 문서 생성 라이브러리
+    'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'post.apps.PostConfig', # post/apps.py내에 정의된 PostConfig 클래스를 지칭
     'account.apps.AccountConfig', # account/apps.py내에 정의된 AccountConfig 클래스를 지칭
     # 추가
@@ -120,6 +122,9 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES' : (
         'rest_framework.permissions.AllowAny',
     ),
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 
@@ -129,6 +134,26 @@ SPECTACULAR_SETTINGS = {
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
     # OTHER SETTINGS
+    'SECURITY': [{'jwtAuth': []}],
+    'APPEND_COMPONENTS': {
+        'securitySchemes': {
+            'jwtAuth': {
+                'type': 'http',
+                'scheme': 'bearer',
+                'bearerFormat': 'JWT',
+            },
+        },
+    },
 }
 
 AUTH_USER_MODEL = 'account.User'
+
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'ROTATE_REFRESH_TOKENS': False,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+}
