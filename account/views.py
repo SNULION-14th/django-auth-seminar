@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema
 
-from account.request_serializers import SignInRequestSerializer, SignUpRequestSerializer, TokenRefreshRequestSerializer
+from account.request_serializers import SignInRequestSerializer, SignUpRequestSerializer, TokenRefreshRequestSerializer, LogoutRequestSerializer
 from .serializers import UserSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -105,3 +105,34 @@ class TokenRefreshView(APIView):
         response = Response({"detail": "token refreshed"}, status=status.HTTP_200_OK)
         response.set_cookie("access_token", value=str(new_access_token), httponly=True)
         return response
+    
+class LogoutView(APIView):
+    @extend_schema(
+        summary="로그아웃",
+        description="사용자를 로그아웃 시킵니다.",
+        request=LogoutRequestSerializer,
+        responses={201: "No Content", 400: "Bad Request", 401: "unauthorized"},
+    )
+    def post(self, request):
+        refresh_token = request.data.get("refresh")
+
+        if not refresh_token:
+            return Response(
+                {"detail": "no refresh token"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            RefreshToken(refresh_token).verify()
+
+        except:
+            return Response(
+                {"detail": "please signin again."}, status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        new_token = RefreshToken(refresh_token)
+        new_token.blacklist()
+
+        res = Response(status=status.HTTP_204_NO_COsNTENT)
+        res.delete_cookie("access_token")
+        res.delete_cookie("refresh_token")
+        return res
