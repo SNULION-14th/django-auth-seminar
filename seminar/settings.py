@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     # 추가
     'tag.apps.TagConfig', # tag/apps.py내에 정의된 TagConfig 클래스를 지칭
     'rest_framework_simplejwt',
+    "rest_framework_simplejwt.token_blacklist",  # JWT 블랙리스트 앱 추가 (Refresh Token 관리를 위해 필요)
 ]
 
 MIDDLEWARE = [
