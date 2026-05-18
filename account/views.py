@@ -31,6 +31,14 @@ def set_token_on_response_cookie(user, status_code):
     res.set_cookie("access_token", value=str(token.access_token), httponly=True)
     return res
 
+def get_refresh_token_from_request(request):
+    return request.COOKIES.get("refresh_token") or request.data.get("refresh")
+
+def delete_token_cookies(response):
+    response.delete_cookie("access_token")
+    response.delete_cookie("refresh_token")
+    return response
+
 class SignUpView(APIView):
     @extend_schema(
         summary="회원가입",
@@ -93,27 +101,27 @@ class SignOutView(APIView):
         responses={200: "OK", 400: "Bad Request", 401: "Unauthorized"},
     )
     def post(self, request):
-        refresh_token = request.data.get("refresh")
+        refresh_token = get_refresh_token_from_request(request)
 
         if not refresh_token:
-            return Response(
+            response = Response(
                 {"detail": "no refresh token"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+            return delete_token_cookies(response)
 
         try:
             token = RefreshToken(refresh_token)
             token.blacklist()
         except TokenError:
-            return Response(
+            response = Response(
                 {"detail": "invalid or already blacklisted refresh token"},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
+            return delete_token_cookies(response)
 
         response = Response({"detail": "logout success"}, status=status.HTTP_200_OK)
-        response.delete_cookie("access_token")
-        response.delete_cookie("refresh_token")
-        return response
+        return delete_token_cookies(response)
 
 class TokenRefreshView(APIView):
     @extend_schema(
@@ -123,7 +131,7 @@ class TokenRefreshView(APIView):
         responses={200: UserSerializer},
     )
     def post(self, request):
-        refresh_token = request.data.get("refresh")
+        refresh_token = get_refresh_token_from_request(request)
         
         #### 1
         if not refresh_token:
