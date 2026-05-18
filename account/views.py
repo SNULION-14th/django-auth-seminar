@@ -6,17 +6,45 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema
 
-from account.request_serializers import SignInRequestSerializer, SignUpRequestSerializer
+from account.request_serializers import SignInRequestSerializer, SignOutRequestSerializer, SignUpRequestSerializer, TokenRefreshRequestSerializer
 from .serializers import UserSerializer
+from rest_framework_simplejwt.tokens import RefreshToken #추가
+from rest_framework_simplejwt.exceptions import TokenError
+
 
 User = get_user_model()
+
+#토큰 생성하는 함수
+def generate_token_in_serialized_data(user):
+    token = RefreshToken.for_user(user)
+    refresh_token, access_token = str(token), str(token.access_token)
+    serialized_data = UserSerializer(user).data
+    serialized_data["token"] = {"access": access_token, "refresh": refresh_token}
+    return serialized_data
+
+#토큰을 쿠키에 넣어주는 함수
+def set_token_on_response_cookie(user, status_code):
+    token = RefreshToken.for_user(user)
+    serialized_data = UserSerializer(user).data
+    res = Response(serialized_data, status=status_code)
+    res.set_cookie("refresh_token", value=str(token), httponly=True)
+    res.set_cookie("access_token", value=str(token.access_token), httponly=True)
+    return res
+
+def get_refresh_token_from_request(request):
+    return request.COOKIES.get("refresh_token") or request.data.get("refresh")
+
+def delete_token_cookies(response):
+    response.delete_cookie("access_token")
+    response.delete_cookie("refresh_token")
+    return response
 
 class SignUpView(APIView):
     @extend_schema(
         summary="회원가입",
         description="회원가입을 진행합니다.",
         request=SignUpRequestSerializer,
-        responses={201: UserSerializer, 400: "Bad Request"},
+        responses={201: UserSerializer, 400: "Bad Request"}, # 수정
     )
     def post(self, request):
         user_serializer = UserSerializer(data=request.data)
@@ -25,7 +53,11 @@ class SignUpView(APIView):
             user.set_password(request.data.get("password"))
             user.save()
 
-            return Response(user_serializer.data, status=status.HTTP_201_CREATED)
+            ## 추가
+            return set_token_on_response_cookie(user, status_code=status.HTTP_201_CREATED)
+
+            ## 수정
+            return Response(serialized_data, status=status.HTTP_201_CREATED)
         return Response(user_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class SignInView(APIView):
@@ -50,11 +82,73 @@ class SignInView(APIView):
                     {"message": "Password is incorrect"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            user_serializer = UserSerializer(user)
-            return Response(user_serializer.data, status=status.HTTP_200_OK)
+            
+            ## 수정
+            serialized_data = generate_token_in_serialized_data(user)
+            return set_token_on_response_cookie(user, status_code=status.HTTP_200_OK)
+            ##
 
         except User.DoesNotExist:
             return Response(
                 {"message": "User does not exist"}, status=status.HTTP_404_NOT_FOUND
             )
 
+class SignOutView(APIView):
+    @extend_schema(
+        summary="로그아웃",
+        description="로그아웃을 진행합니다.",
+        request=SignOutRequestSerializer,
+        responses={200: "OK", 400: "Bad Request", 401: "Unauthorized"},
+    )
+    def post(self, request):
+        refresh_token = get_refresh_token_from_request(request)
+
+        if not refresh_token:
+            response = Response(
+                {"detail": "no refresh token"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+            return delete_token_cookies(response)
+
+        try:
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+        except TokenError:
+            response = Response(
+                {"detail": "invalid or already blacklisted refresh token"},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+            return delete_token_cookies(response)
+
+        response = Response({"detail": "logout success"}, status=status.HTTP_200_OK)
+        return delete_token_cookies(response)
+
+class TokenRefreshView(APIView):
+    @extend_schema(
+        summary="토큰 재발급",
+        description="access 토큰을 재발급 받습니다.",
+        request=TokenRefreshRequestSerializer,
+        responses={200: UserSerializer},
+    )
+    def post(self, request):
+        refresh_token = get_refresh_token_from_request(request)
+        
+        #### 1
+        if not refresh_token:
+            return Response(
+                {"detail": "no refresh token"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+        #### 2
+            RefreshToken(refresh_token).verify()
+        except:
+            return Response(
+                {"detail": "please signin again."}, status=status.HTTP_401_UNAUTHORIZED
+            )
+            
+        #### 3
+        new_access_token = str(RefreshToken(refresh_token).access_token)
+        response = Response({"detail": "token refreshed"}, status=status.HTTP_200_OK)
+        response.set_cookie("access_token", value=str(new_access_token), httponly=True)
+        return response

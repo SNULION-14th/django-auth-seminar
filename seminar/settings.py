@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import environ
+from datetime import timedelta
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -37,6 +38,8 @@ INSTALLED_APPS = [
     'account.apps.AccountConfig', # account/apps.py내에 정의된 AccountConfig 클래스를 지칭
     # 추가
     'tag.apps.TagConfig', # tag/apps.py내에 정의된 TagConfig 클래스를 지칭
+    'rest_framework_simplejwt', #JWT 라이브러리 추가
+    'rest_framework_simplejwt.token_blacklist', #로그아웃 기능 구현을 위한 blacklist 기능
 ]
 
 MIDDLEWARE = [
@@ -121,6 +124,9 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.AllowAny',
     ),
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    )
 }
 
 SPECTACULAR_SETTINGS = {
@@ -128,7 +134,32 @@ SPECTACULAR_SETTINGS = {
     'DESCRIPTION': 'DRF 세미나 API 명세서입니다.',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
-    # OTHER SETTINGS
+    ## 추가
+    # Swagger에서 전역적으로 사용할 보안 스키마 정의
+    'SECURITY': [{'jwtAuth': []}],
+    'APPEND_COMPONENTS': {
+        'securitySchemes': {
+            'jwtAuth': { 
+                'type': 'http',
+                'scheme': 'bearer',
+                'bearerFormat': 'JWT',
+            }
+        }
+    },
+    ##
 }
 
 AUTH_USER_MODEL = 'account.User'
+
+
+REST_USE_JWT = True
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'ROTATE_REFRESH_TOKEN': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'AUTH_HEADER_TYPES': ('Bearer',),  # 🔹 인증 헤더 타입을 "Bearer"로 설정
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),  # 🔹 Access Token 클래스를 지정
+    'ACCESS_TOKEN': 'access_token',  # 🔹 Access Token의 이름 지정
+    'REFRESH_TOKEN': 'refresh_token',  # 🔹 Refresh Token의 이름 지정
+    }
