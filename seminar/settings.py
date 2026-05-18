@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     # 추가
     "tag.apps.TagConfig",  # tag/apps.py내에 정의된 TagConfig 클래스를 지칭
     "rest_framework_simplejwt",  # 🔹 JWT 라이브러리 추가
+    "rest_framework_simplejwt.token_blacklist",
 ]
 
 MIDDLEWARE = [
