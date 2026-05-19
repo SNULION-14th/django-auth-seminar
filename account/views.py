@@ -1,12 +1,11 @@
-# ./account/views.py
-
 from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema
+from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 
-from account.request_serializers import SignInRequestSerializer, SignUpRequestSerializer
+from account.request_serializers import SignInRequestSerializer, SignUpRequestSerializer, TokenRefreshRequestSerializer
 from .serializers import UserSerializer
 
 User = get_user_model()
@@ -58,3 +57,43 @@ class SignInView(APIView):
                 {"message": "User does not exist"}, status=status.HTTP_404_NOT_FOUND
             )
 
+class LogoutView(APIView):
+    @extend_schema(
+        summary="로그아웃",
+        description="사용자를 로그아웃 시킵니다.",
+        request=TokenRefreshRequestSerializer,
+        responses={
+            204: "No Content", 
+            400: "Bad Request", 
+            401: "Unauthorized"
+        },
+    )
+    def post(self, request):
+        author = request.user
+        if not author.is_authenticated:
+            return Response(
+                {"detail": "please signin"}, 
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        refresh_token = request.data.get("refresh")
+        if not refresh_token:
+            return Response(
+                {"detail": "no refresh token"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+        except TokenError:
+            return Response(
+                {"detail": "no refresh token"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        response = Response(status=status.HTTP_204_NO_CONTENT)
+        response.delete_cookie("access_token")
+        response.delete_cookie("refresh_token")
+        
+        return response
