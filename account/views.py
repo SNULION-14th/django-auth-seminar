@@ -1,13 +1,14 @@
 # ./account/views.py
 
 from django.contrib.auth import get_user_model
-from rest_framework import status
+from rest_framework import serializers, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from account.request_serializers import SignInRequestSerializer, SignUpRequestSerializer, TokenRefreshRequestSerializer
+from account.request_serializers import LogoutRequestSerializer, SignInRequestSerializer, SignUpRequestSerializer, TokenRefreshRequestSerializer
 from .serializers import UserSerializer
 
 User = get_user_model()
@@ -104,4 +105,46 @@ class TokenRefreshView(APIView):
         new_access_token = str(RefreshToken(refresh_token).access_token)
         response = Response({"detail": "token refreshed"}, status=status.HTTP_200_OK)
         response.set_cookie("access_token", value=str(new_access_token), httponly=True)
+        return response
+
+
+class LogoutView(APIView):
+    @extend_schema(
+        summary="Logout",
+        description="Blacklist the submitted refresh token and delete auth cookies.",
+        request=LogoutRequestSerializer,
+        responses={
+            200: inline_serializer(
+                name="LogoutSuccessResponse",
+                fields={"detail": serializers.CharField()},
+            ),
+            400: inline_serializer(
+                name="LogoutBadRequestResponse",
+                fields={"detail": serializers.CharField()},
+            ),
+            401: inline_serializer(
+                name="LogoutUnauthorizedResponse",
+                fields={"detail": serializers.CharField()},
+            ),
+        },
+    )
+    def post(self, request):
+        refresh_token = request.data.get("refresh")
+
+        if not refresh_token:
+            return Response(
+                {"detail": "no refresh token"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+        except TokenError:
+            return Response(
+                {"detail": "invalid refresh token"}, status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        response = Response({"detail": "logout success"}, status=status.HTTP_200_OK)
+        response.delete_cookie("access_token")
+        response.delete_cookie("refresh_token")
         return response
