@@ -6,9 +6,15 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema
 
-from account.request_serializers import SignInRequestSerializer, SignUpRequestSerializer, TokenRefreshRequestSerializer
+from account.request_serializers import (
+  SignInRequestSerializer,
+  SignUpRequestSerializer,
+  TokenRefreshRequestSerializer,
+  LogoutRequestSerializer,
+)
 from .serializers import UserSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError
 
 User = get_user_model()
 
@@ -104,3 +110,42 @@ class TokenRefreshView(APIView):
         response = Response({"detail": "token refreshed"}, status=status.HTTP_200_OK)
         response.set_cookie("access_token", value=str(new_access_token), httponly=True)
         return response
+    
+class LogoutView(APIView):
+    @extend_schema(
+        summary="로그아웃",
+        description="로그아웃을 진행하고 전달받은 refresh token을 블랙리스트에 추가합니다.",
+        request=LogoutRequestSerializer,
+        responses={200: "Logout Successful", 400: "Bad Request"},
+    )
+    def post(self, request):
+        # 1. request.data에서 refresh token 가져오기 (만약 없다면 쿠키에서도 확인)
+        refresh_token = request.data.get("refresh") or request.COOKIES.get("refresh_token")
+        
+        if not refresh_token:
+            return Response(
+                {"detail": "Refresh token is missing."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            # 2. RefreshToken 객체 생성 후 blacklist() 메서드 호출
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+            
+            # 3. 성공 응답 생성 및 쿠키 삭제 로직
+            response = Response(
+                {"message": "성공적으로 로그아웃 되었습니다."}, 
+                status=status.HTTP_200_OK
+            )
+            response.delete_cookie("access_token")
+            response.delete_cookie("refresh_token")
+            
+            return response
+            
+        except TokenError:
+            # 이미 블랙리스트에 있거나 유효하지 않은 토큰일 경우
+            return Response(
+                {"detail": "Token is invalid or expired."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
