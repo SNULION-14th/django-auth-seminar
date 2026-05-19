@@ -9,7 +9,6 @@ from drf_spectacular.utils import extend_schema
 from account.request_serializers import SignInRequestSerializer, SignUpRequestSerializer
 from .serializers import UserSerializer
 from rest_framework_simplejwt.tokens import RefreshToken #추가
-from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.exceptions import TokenError
 from account.request_serializers import SignInRequestSerializer, SignUpRequestSerializer, SignOutRequestSerializer, TokenRefreshRequestSerializer
 
@@ -84,8 +83,6 @@ class SignInView(APIView):
             )
 
 class SignOutView(APIView):
-    permission_classes = [IsAuthenticated]
-
     @extend_schema(
         summary = "로그아웃",
         description = "로그아웃을 진행합니다.",
@@ -94,6 +91,12 @@ class SignOutView(APIView):
     )   
 
     def post(self, request):
+        if not request.user.is_authenticated:
+            return Response(
+                {"detail":"please signin"},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        
         refresh_token = request.data.get("refresh")
 
         if not refresh_token:
