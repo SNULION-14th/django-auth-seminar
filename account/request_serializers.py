@@ -13,5 +13,9 @@ class SignInRequestSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField()
 
+
+class SignOutRequestSerializer(serializers.Serializer):
+    refresh = serializers.CharField(required=True)
+
 class TokenRefreshRequestSerializer(serializers.Serializer):
     refresh = serializers.CharField()

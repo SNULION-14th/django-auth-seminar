@@ -9,7 +9,9 @@ from drf_spectacular.utils import extend_schema
 from account.request_serializers import SignInRequestSerializer, SignUpRequestSerializer
 from .serializers import UserSerializer
 from rest_framework_simplejwt.tokens import RefreshToken #추가
-from account.request_serializers import SignInRequestSerializer, SignUpRequestSerializer, TokenRefreshRequestSerializer
+from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.exceptions import TokenError
+from account.request_serializers import SignInRequestSerializer, SignUpRequestSerializer, SignOutRequestSerializer, TokenRefreshRequestSerializer
 
 
 User = get_user_model()
@@ -44,9 +46,9 @@ class SignUpView(APIView):
             user.set_password(request.data.get("password"))
             user.save()
 
-            # 추가
+            # 추가: 회원가입 완료 시, Acess Token과 Refresh Token을 발급하고 응답에 포함. -> 회원가입 후에도 토큰 이용해 사용자 인증 유지 가능.
             return set_token_on_response_cookie(user, status_code=status.HTTP_201_CREATED)
-            
+
         return Response(user_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 
@@ -73,13 +75,50 @@ class SignInView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             
-
+            ##수정
             return set_token_on_response_cookie(user, status_code=status.HTTP_200_OK)
         
         except User.DoesNotExist:
             return Response(
                 {"message": "User does not exist"}, status=status.HTTP_404_NOT_FOUND
             )
+
+class SignOutView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary = "로그아웃",
+        description = "로그아웃을 진행합니다.",
+        request=SignOutRequestSerializer,
+        responses={401:"Unauthorized", 400: "Bad Request", 204: None},
+    )   
+
+    def post(self, request):
+        refresh_token = request.data.get("refresh")
+
+        if not refresh_token:
+            return Response(
+                {"detail": "no refresh token"},
+                status = status.HTTP_400_BAD_REQUEST,
+            )
+        
+        try:
+            token = RefreshToken(refresh_token)
+            token.verify()
+            token.blacklist()
+
+        except TokenError:
+            return Response(
+                {"detail": "no refresh token"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        
+        
+        res = Response(status=status.HTTP_204_NO_CONTENT)
+        res.delete_cookie("access")
+        res.delete_cookie("refresh")
+        return res
 
 
 class TokenRefreshView(APIView):
@@ -92,21 +131,21 @@ class TokenRefreshView(APIView):
     def post(self, request):
         refresh_token = request.data.get("refresh")
         
-        #### 1
+        #### 1. 사용자의 요청 body로부터 refresh 토큰의 값을 가져옴. 그 값이 없을 경우 400 에러 반환.
         if not refresh_token:
             return Response(
                 {"detail": "no refresh token"}, status=status.HTTP_400_BAD_REQUEST
             )
 
         try:
-        #### 2
+        #### 2. 받아온 refresh token이 유효한지 검증. 만약 refresh token이 유효하지 않은 경우, validation error가 발생하여 except 구문 동작, 401 에러 반환. 
             RefreshToken(refresh_token).verify()
         except:
             return Response(
                 {"detail": "please signin again."}, status=status.HTTP_401_UNAUTHORIZED
             )
             
-        #### 3
+        #### 3. refresh token이 유효한 상태임을 확인하면 새로운 access_token을 발급하고, 이를 쿠키에 담아 사용자에게 응답으로 보냄. 
         new_access_token = str(RefreshToken(refresh_token).access_token)
         response = Response({"detail": "token refreshed"}, status=status.HTTP_200_OK)
         response.set_cookie("access_token", value=str(new_access_token), httponly=True)

@@ -96,7 +96,7 @@ class PostDetailView(APIView):
             return Response(
                 {"detail": "Post Not found."}, status=status.HTTP_404_NOT_FOUND
             )
-
+        ##수정
         author = request.user
         if not author.is_authenticated:
             return Response(
@@ -107,6 +107,7 @@ class PostDetailView(APIView):
                 {"detail": "You are not the author of this post."},
                 status=status.HTTP_403_FORBIDDEN,
             )
+        ##
 
         post.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -125,6 +126,7 @@ class PostDetailView(APIView):
                 {"detail": "Post not found."}, status=status.HTTP_404_NOT_FOUND
             )
         
+        ##수정
         author = request.user
         if not author.is_authenticated:
             return Response(
@@ -135,7 +137,8 @@ class PostDetailView(APIView):
                 {"detail": "You are not the author of this post."},
                 status=status.HTTP_403_FORBIDDEN,
             )
-    
+        ##
+
         title = request.data.get("title")
         content = request.data.get("content")
         if not title or not content:
@@ -163,6 +166,7 @@ class LikeView(APIView):
     @extend_schema(
         summary="좋아요 토글",
         description="좋아요를 토글합니다. 이미 좋아요가 눌려있으면 취소합니다.",
+        request=SignInRequestSerializer,
         responses={200: PostSerializer, 404: "Not Found", 400: "Bad Request"},
     )
     def post(self, request, post_id):
@@ -173,12 +177,13 @@ class LikeView(APIView):
                 {"detail": "Post not found."}, status=status.HTTP_404_NOT_FOUND
             )
         
+        ##수정
         author = request.user
         if not author.is_authenticated:
             return Response(
                 {"detail": "please signin"}, status=status.HTTP_401_UNAUTHORIZED
             )
-
+        ##
         is_liked = post.like_set.filter(user=author).count() > 0
 
         if is_liked == True:
