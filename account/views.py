@@ -91,19 +91,26 @@ class SignOutView(APIView):
     )   
 
     def post(self, request):
+        def delete_auth_cookies(response):
+            response.delete_cookie("access_token")
+            response.delete_cookie("refresh_token")
+            return response
+        
         if not request.user.is_authenticated:
-            return Response(
+            res = Response(
                 {"detail":"please signin"},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
+            return delete_auth_cookies(res)
         
-        refresh_token = request.data.get("refresh")
+        refresh_token = request.data.get("refresh") or request.COOKIES.get("refresh_token")
 
         if not refresh_token:
-            return Response(
+            res = Response(
                 {"detail": "no refresh token"},
                 status = status.HTTP_400_BAD_REQUEST,
             )
+            return delete_auth_cookies(res)
         
         try:
             token = RefreshToken(refresh_token)
@@ -111,17 +118,20 @@ class SignOutView(APIView):
             token.blacklist()
 
         except TokenError:
-            return Response(
+            res = Response(
                 {"detail": "no refresh token"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        
-        
+            return delete_auth_cookies(res)
         
         res = Response(status=status.HTTP_204_NO_CONTENT)
-        res.delete_cookie("access")
-        res.delete_cookie("refresh")
-        return res
+        return delete_auth_cookies(res)
+        
+        
+        #res = Response(status=status.HTTP_204_NO_CONTENT)
+        #res.delete_cookie("access_token")
+        #res.delete_cookie("refresh_token")
+        #return res
 
 
 class TokenRefreshView(APIView):
