@@ -101,3 +101,57 @@ class TokenRefreshView(APIView):
         response = Response({"detail": "token refreshed"}, status=status.HTTP_200_OK)
         response.set_cookie("access_token", value=str(new_access_token), httponly=True)
         return response
+
+
+
+from rest_framework_simplejwt.exceptions import TokenError
+class LogoutAPIView(APIView):
+
+    @extend_schema(
+        summary="로그아웃",
+        description="Refresh 토큰을 블랙리스트에 추가하고 쿠키를 삭제하여 로그아웃합니다.",
+        request=TokenRefreshRequestSerializer, 
+        responses={
+            200: {"description": "성공적으로 로그아웃 되었습니다."}, 
+            400: "Bad Request",
+            401: "Unauthorized",
+        },
+    )
+    def post(self, request):
+        
+        #로그인 되어있을 때만 가능
+        author = request.user
+        if not author.is_authenticated:
+            return Response({"detail": "please signin"}, status=status.HTTP_401_UNAUTHORIZED)
+                   
+        # refresh request 시리얼라이저를 활용해 refresh token 추출
+        serializer = TokenRefreshRequestSerializer(data=request.data)
+        
+        if not serializer.is_valid():
+            return Response(
+                {"detail": "no refresh token"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        refresh_token = serializer.validated_data.get("refresh")
+            
+        try:
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+            
+            response = Response(
+                {"message": "성공적으로 로그아웃 되었습니다."}, 
+                status=status.HTTP_200_OK
+            )
+
+            #쿠키 삭제
+            response.delete_cookie("access_token")
+            response.delete_cookie("refresh_token")
+
+            return response
+
+        except TokenError:
+            return Response(
+                {"message": "invalid or expired Token"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
