@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'rest_framework', # DRF 라이브러리
     'drf_spectacular', # Swagger 문서 생성 라이브러리
     'post.apps.PostConfig', # post/apps.py내에 정의된 PostConfig 클래스를 지칭
