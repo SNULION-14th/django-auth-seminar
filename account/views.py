@@ -10,6 +10,8 @@ from account.request_serializers import SignInRequestSerializer, SignUpRequestSe
 ...
 from .serializers import UserSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework.permissions import IsAuthenticated
 
 User = get_user_model()
 
@@ -103,3 +105,48 @@ class TokenRefreshView(APIView):
         response = Response({"detail": "token refreshed"}, status=status.HTTP_200_OK)
         response.set_cookie("access_token", value=str(new_access_token), httponly=True)
         return response
+    
+
+
+class LogoutView(APIView):
+    
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="로그아웃",
+        description="전달받은 refresh 토큰을 블랙리스트에 등록하여 로그아웃 처리를 합니다.",
+        request={
+            "application/json": {
+                "type": "object",
+                "properties": {
+                    "refresh": {"type": "string", "description": "블랙리스트 처리할 Refresh 토큰"}
+                },
+                "required": ["refresh"]
+            }
+        },
+        responses={200: "성공적으로 로그아웃 되었습니다.", 400: "Bad Request"},
+    )
+    def post(self, request):
+        refresh_token = request.data.get("refresh")
+    
+        if not refresh_token:
+            return Response(
+                {"detail": "missing field ['refresh'] in body"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+
+            response = Response({"detail": "Successfully logged out. Token blacklisted."}, status=status.HTTP_200_OK)
+            response.delete_cookie("access_token")
+            response.delete_cookie("refresh_token")
+            
+            return response
+        
+        except TokenError:
+            return Response(
+                {"detail": "Token is invalid or already blacklisted."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
