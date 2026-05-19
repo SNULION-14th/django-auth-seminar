@@ -5,8 +5,10 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema
+from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.exceptions import TokenError  
 
-from account.request_serializers import SignInRequestSerializer, SignUpRequestSerializer, TokenRefreshRequestSerializer
+from account.request_serializers import LogoutRequestSerializer, SignInRequestSerializer, SignUpRequestSerializer, TokenRefreshRequestSerializer
 from .serializers import UserSerializer
 
 from rest_framework_simplejwt.tokens import RefreshToken #추가
@@ -107,3 +109,31 @@ class TokenRefreshView(APIView):
         response = Response({"detail": "token refreshed"}, status=status.HTTP_200_OK)
         response.set_cookie("access_token", value=str(new_access_token), httponly=True)
         return response
+
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+    @extend_schema(
+        summary="로그아웃",
+        description="사용자를 로그아웃 시킵니다.",
+        request=LogoutRequestSerializer,
+        responses={204: "No Content", 401: "Unauthorized", 400: "Bad Request"},
+    )
+    def post(self, request):
+        refresh_token = request.data.get("refresh")
+        
+        if not refresh_token:
+            return Response(
+                {"detail": "no refresh token"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            token = RefreshToken(refresh_token)
+            token.blacklist() 
+            res = Response(status=status.HTTP_204_NO_CONTENT)
+            res.delete_cookie("access_token")
+            res.delete_cookie("refresh_token")
+            return res
+        except TokenError:
+            return Response(
+                {"detail": "invalid refresh token"}, status=status.HTTP_400_BAD_REQUEST
+            )
